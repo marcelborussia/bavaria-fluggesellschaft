@@ -37,7 +37,9 @@
   #zoom-controls button { width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: var(--font); transition: background 0.12s; }
   #zoom-controls button:hover { background: var(--bg); }
   #zoom-reset { font-size: 12px !important; }
-  .footer { margin-top: 14px; font-size: 11px; color: var(--muted); font-family: var(--font-mono); text-align: right; }
+  .footer { margin-top: 14px; font-size: 11px; color: var(--muted); font-family: var(--font-mono); display: flex; align-items: center; justify-content: space-between; }
+  .footer-btn { padding: 6px 16px; font-size: 12px; font-family: var(--font); border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; text-decoration: none; transition: background 0.12s; }
+  .footer-btn:hover { background: var(--bg); border-color: #aaa; }
 </style>
 </head>
 <body>
@@ -70,7 +72,10 @@
       <button id="zoom-reset">⌂</button>
     </div>
   </div>
-  <div class="footer">Bavaria International · Flugplan 2026 · Stand: Juni 2026</div>
+  <div class="footer">
+    <span>Bavaria International · Flugplan 2026 · Stand: Juni 2026</span>
+    <a class="footer-btn" href="https://marcelborussia.github.io/bavaria-fluggesellschaft/Bavaria_Flugplan_2026_DUS.html" target="_blank">Flugplan als Liste ↗</a>
+  </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
