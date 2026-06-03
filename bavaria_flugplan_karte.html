@@ -10,44 +10,49 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
-    --bg: #f4f2ed; --surface: #ffffff; --border: #ddd9d0;
-    --text: #1a1916; --muted: #7a7670; --accent: #c0392b;
+    --bg: #eef3fa; --surface: #ffffff; --border: #c5d4e8;
+    --text: #0d1f35; --muted: #5a7a9a; --accent: #2E6DB4;
     --radius-sm: 6px; --radius-md: 10px;
     --font: 'DM Sans', sans-serif; --font-mono: 'DM Mono', monospace;
   }
   body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; padding: 32px 24px; }
   .page { max-width: 1000px; margin: 0 auto; }
-  .header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-  .header h1 { font-size: 22px; font-weight: 500; letter-spacing: -0.3px; }
-  .header .sub { font-size: 13px; color: var(--muted); margin-top: 4px; font-family: var(--font-mono); }
+  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2.5px solid var(--accent); }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .header-logo { height: 52px; display: block; }
+  .header h1 { font-size: 20px; font-weight: 500; letter-spacing: -0.3px; color: var(--accent); }
+  .header .sub { font-size: 12px; color: var(--muted); margin-top: 3px; font-family: var(--font-mono); }
   .stats { display: flex; gap: 8px; align-items: center; }
   .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 12px; font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
-  .stat strong { color: var(--text); font-weight: 500; }
+  .stat strong { color: var(--accent); font-weight: 500; }
   .filter-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
   .region-btn { padding: 5px 14px; font-size: 12px; font-family: var(--font); border-radius: 99px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; transition: all 0.15s; }
-  .region-btn:hover { border-color: #aaa; color: var(--text); }
-  .region-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .region-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .region-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
   #map-container { width: 100%; height: 580px; position: relative; background: #dce8f0; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border); cursor: grab; }
   #map-container:active { cursor: grabbing; }
   #map { width: 100%; height: 100%; }
   #tooltip { position: absolute; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 11px; font-size: 13px; pointer-events: none; display: none; z-index: 10; white-space: nowrap; }
-  #tooltip strong { font-weight: 500; display: block; }
+  #tooltip strong { font-weight: 500; display: block; color: var(--accent); }
   #tooltip span { color: var(--muted); font-size: 11px; font-family: var(--font-mono); }
   #zoom-controls { position: absolute; bottom: 14px; right: 14px; display: flex; flex-direction: column; gap: 3px; z-index: 5; }
-  #zoom-controls button { width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: var(--font); transition: background 0.12s; }
+  #zoom-controls button { width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--accent); font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: var(--font); transition: background 0.12s; }
   #zoom-controls button:hover { background: var(--bg); }
   #zoom-reset { font-size: 12px !important; }
   .footer { margin-top: 14px; font-size: 11px; color: var(--muted); font-family: var(--font-mono); display: flex; align-items: center; justify-content: space-between; }
-  .footer-btn { padding: 6px 16px; font-size: 12px; font-family: var(--font); border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; text-decoration: none; transition: background 0.12s; }
-  .footer-btn:hover { background: var(--bg); border-color: #aaa; }
+  .footer-btn { padding: 6px 16px; font-size: 12px; font-family: var(--font); border-radius: var(--radius-sm); border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; text-decoration: none; transition: background 0.12s; }
+  .footer-btn:hover { background: #1d5a9a; border-color: #1d5a9a; }
 </style>
 </head>
 <body>
 <div class="page">
   <div class="header">
-    <div>
-      <h1>Bavaria Flugplan 2026</h1>
-      <div class="sub">Alle Abflüge ab Düsseldorf (DUS)</div>
+    <div class="header-left">
+      <img class="header-logo" src="https://marcelborussia.github.io/bavaria-fluggesellschaft/Bavaria_Logo.png" alt="Bavaria Fluggesellschaft" onerror="this.style.display='none'">
+      <div>
+        <h1>Flugplan 2026</h1>
+        <div class="sub">Alle Abflüge ab Düsseldorf (DUS)</div>
+      </div>
     </div>
     <div class="stats">
       <div class="stat">✈ <strong>239</strong> Verbindungen</div>
@@ -324,7 +329,7 @@ const destinations=[
 ];
 
 const DUS={lat:51.29,lon:6.77};
-const regionColors={"Europa":"#2563a8","Asien":"#1a9e70","Afrika":"#c0392b","Naher Osten":"#b07010","Nordamerika":"#5a42b0","Südamerika":"#903050","Karibik":"#0e6e50"};
+const regionColors={"Europa":"#2E6DB4","Asien":"#1a9e70","Afrika":"#c0392b","Naher Osten":"#b07010","Nordamerika":"#5a42b0","Südamerika":"#903050","Karibik":"#0e6e50"};
 let activeRegion="Alle";
 
 ["Alle",...Object.keys(regionColors)].forEach(r=>{
@@ -389,7 +394,7 @@ function drawDUS(){
   const k=ck(),r=DOT_R/Math.sqrt(k);
   d3.select("#dus").append("circle").attr("class","dus-dot")
     .attr("cx",pos[0]).attr("cy",pos[1]).attr("r",r)
-    .attr("fill","#c0392b").attr("stroke","#fff").attr("stroke-width",1/Math.sqrt(k));
+    .attr("fill","#2E6DB4").attr("stroke","#fff").attr("stroke-width",1/Math.sqrt(k));
 }
 
 function drawLegend(){
