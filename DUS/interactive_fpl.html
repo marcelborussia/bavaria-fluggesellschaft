@@ -73,7 +73,8 @@ body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:
 .footer-link p{font-size:.75rem;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px}
 .empty-state{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--muted)}
 .empty-state .empty-icon{font-size:3rem;margin-bottom:12px;opacity:.4}
-.airport-link{display:inline-flex;align-items:center;gap:6px;margin-top:14px;color:var(--sky);font-size:.8rem;font-weight:600;letter-spacing:.4px;text-decoration:none;border:1px solid rgba(74,159,212,0.3);border-radius:6px;padding:5px 11px;transition:background .2s,border-color .2s,color .2s}
+.airport-link-wrap{display:flex;justify-content:center;margin-top:14px}
+.airport-link{display:inline-flex;align-items:center;gap:6px;color:var(--sky);font-size:.8rem;font-weight:600;letter-spacing:.4px;text-decoration:none;border:1px solid rgba(74,159,212,0.3);border-radius:6px;padding:5px 11px;transition:background .2s,border-color .2s,color .2s}
 .airport-link:hover{background:rgba(74,159,212,0.15);border-color:var(--sky);color:var(--white)}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--navy)}::-webkit-scrollbar-thumb{background:var(--blue);border-radius:3px}
 @media(max-width:600px){.site-header{flex-direction:column;gap:16px;text-align:center}.header-title{text-align:center}.filter-section{padding:20px 16px}.flights-grid{grid-template-columns:1fr}}
@@ -227,7 +228,7 @@ function renderFlights(list) {
               '<div class="plane-arrive">&#128748;</div>' +
             '</div>' +
           '</div>' +
-          (f.iata ? '<a class="airport-link" href="https://opennav.com/airport/' + f.iata.toLowerCase() + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">&#9992; Airport Info ' + f.iata + ' &#8599;</a>' : '') +
+          (f.iata ? '<div class="airport-link-wrap"><a class="airport-link" href="https://opennav.com/airport/' + f.iata.toLowerCase() + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">&#9992; Airport Info ' + f.iata + ' &#8599;</a></div>' : '') +
         '</div>' +
       '</div>' +
     '</div>'
