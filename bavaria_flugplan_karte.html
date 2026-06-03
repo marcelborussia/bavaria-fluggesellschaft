@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bavaria Flugplan 2026 – ab Düsseldorf</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f4f2ed; --surface: #ffffff; --border: #ddd9d0;
+    --text: #1a1916; --muted: #7a7670; --accent: #c0392b;
+    --radius-sm: 6px; --radius-md: 10px;
+    --font: 'DM Sans', sans-serif; --font-mono: 'DM Mono', monospace;
+  }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; padding: 32px 24px; }
+  .page { max-width: 1000px; margin: 0 auto; }
+  .header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .header h1 { font-size: 22px; font-weight: 500; letter-spacing: -0.3px; }
+  .header .sub { font-size: 13px; color: var(--muted); margin-top: 4px; font-family: var(--font-mono); }
+  .stats { display: flex; gap: 8px; align-items: center; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 5px 12px; font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+  .stat strong { color: var(--text); font-weight: 500; }
+  .filter-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .region-btn { padding: 5px 14px; font-size: 12px; font-family: var(--font); border-radius: 99px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; transition: all 0.15s; }
+  .region-btn:hover { border-color: #aaa; color: var(--text); }
+  .region-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+  #map-container { width: 100%; height: 580px; position: relative; background: #dce8f0; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border); cursor: grab; }
+  #map-container:active { cursor: grabbing; }
+  #map { width: 100%; height: 100%; }
+  #tooltip { position: absolute; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 11px; font-size: 13px; pointer-events: none; display: none; z-index: 10; white-space: nowrap; }
+  #tooltip strong { font-weight: 500; display: block; }
+  #tooltip span { color: var(--muted); font-size: 11px; font-family: var(--font-mono); }
+  #zoom-controls { position: absolute; bottom: 14px; right: 14px; display: flex; flex-direction: column; gap: 3px; z-index: 5; }
+  #zoom-controls button { width: 30px; height: 30px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-family: var(--font); transition: background 0.12s; }
+  #zoom-controls button:hover { background: var(--bg); }
+  #zoom-reset { font-size: 12px !important; }
+  .footer { margin-top: 14px; font-size: 11px; color: var(--muted); font-family: var(--font-mono); text-align: right; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header">
+    <div>
+      <h1>Bavaria Flugplan 2026</h1>
+      <div class="sub">Alle Abflüge ab Düsseldorf (DUS)</div>
+    </div>
+    <div class="stats">
+      <div class="stat">✈ <strong>239</strong> Verbindungen</div>
+      <div class="stat">🌍 <strong>81</strong> Länder</div>
+    </div>
+  </div>
+  <div class="filter-bar" id="filters"></div>
+  <div id="map-container">
+    <svg id="map" viewBox="0 0 900 500" xmlns="http://www.w3.org/2000/svg">
+      <g id="zoom-g">
+        <g id="countries"></g>
+        <g id="lines"></g>
+        <g id="dots"></g>
+        <g id="dus"></g>
+      </g>
+      <g id="legend"></g>
+    </svg>
+    <div id="tooltip"></div>
+    <div id="zoom-controls">
+      <button id="zoom-in">+</button>
+      <button id="zoom-out">−</button>
+      <button id="zoom-reset">⌂</button>
+    </div>
+  </div>
+  <div class="footer">Bavaria International · Flugplan 2026 · Stand: Juni 2026</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+const DOT_R=2;
+const destinations=[
+  {city:"Hurghada",country:"Ägypten",region:"Afrika",lat:27.26,lon:33.81},
+  {city:"Kairo",country:"Ägypten",region:"Afrika",lat:30.06,lon:31.25},
+  {city:"Marsa Alam",country:"Ägypten",region:"Afrika",lat:25.56,lon:34.58},
+  {city:"Sharm El-Sheikh",country:"Ägypten",region:"Afrika",lat:27.97,lon:34.39},
+  {city:"Kukes",country:"Albanien",region:"Europa",lat:42.07,lon:20.42},
+  {city:"Tirana",country:"Albanien",region:"Europa",lat:41.33,lon:19.82},
+  {city:"Bridgetown",country:"Barbados",region:"Karibik",lat:13.09,lon:-59.62},
+  {city:"Brüssel",country:"Belgien",region:"Europa",lat:50.90,lon:4.48},
+  {city:"Mostar",country:"Bosnien",region:"Europa",lat:43.28,lon:17.84},
+  {city:"Sarajevo",country:"Bosnien",region:"Europa",lat:43.82,lon:18.33},
+  {city:"Brasilia",country:"Brasilien",region:"Südamerika",lat:-15.87,lon:-47.92},
+  {city:"Rio de Janeiro",country:"Brasilien",region:"Südamerika",lat:-22.91,lon:-43.17},
+  {city:"Sao Paulo",country:"Brasilien",region:"Südamerika",lat:-23.43,lon:-46.48},
+  {city:"Burgas",country:"Bulgarien",region:"Europa",lat:42.57,lon:27.50},
+  {city:"Sofia",country:"Bulgarien",region:"Europa",lat:42.70,lon:23.43},
+  {city:"Varna",country:"Bulgarien",region:"Europa",lat:43.22,lon:27.83},
+  {city:"Beijing",country:"China",region:"Asien",lat:40.08,lon:116.60},
+  {city:"Chengdu",country:"China",region:"Asien",lat:30.58,lon:103.96},
+  {city:"Guangzhou",country:"China",region:"Asien",lat:23.39,lon:113.30},
+  {city:"Schanghai",country:"China",region:"Asien",lat:31.14,lon:121.80},
+  {city:"Wuhan",country:"China",region:"Asien",lat:30.78,lon:114.21},
+  {city:"Kopenhagen",country:"Dänemark",region:"Europa",lat:55.62,lon:12.66},
+  {city:"Berlin",country:"Deutschland",region:"Europa",lat:52.37,lon:13.50},
+  {city:"Bremen",country:"Deutschland",region:"Europa",lat:53.05,lon:8.79},
+  {city:"Dresden",country:"Deutschland",region:"Europa",lat:51.13,lon:13.77},
+  {city:"Frankfurt",country:"Deutschland",region:"Europa",lat:50.04,lon:8.57},
+  {city:"Friedrichshafen",country:"Deutschland",region:"Europa",lat:47.67,lon:9.51},
+  {city:"Hamburg",country:"Deutschland",region:"Europa",lat:53.63,lon:10.00},
+  {city:"Hannover",country:"Deutschland",region:"Europa",lat:52.46,lon:9.69},
+  {city:"Karlsruhe",country:"Deutschland",region:"Europa",lat:48.78,lon:8.08},
+  {city:"Köln",country:"Deutschland",region:"Europa",lat:50.87,lon:7.14},
+  {city:"Leipzig",country:"Deutschland",region:"Europa",lat:51.43,lon:12.24},
+  {city:"Lübeck",country:"Deutschland",region:"Europa",lat:53.81,lon:10.71},
+  {city:"Münster",country:"Deutschland",region:"Europa",lat:52.13,lon:7.68},
+  {city:"Nürnberg",country:"Deutschland",region:"Europa",lat:49.50,lon:11.08},
+  {city:"Rostock",country:"Deutschland",region:"Europa",lat:54.17,lon:12.14},
+  {city:"Stuttgart",country:"Deutschland",region:"Europa",lat:48.69,lon:9.22},
+  {city:"Westerland",country:"Deutschland",region:"Europa",lat:54.91,lon:8.34},
+  {city:"La Romana",country:"Dom. Rep.",region:"Karibik",lat:18.45,lon:-68.96},
+  {city:"Puerto Plata",country:"Dom. Rep.",region:"Karibik",lat:19.76,lon:-70.57},
+  {city:"Punta Cana",country:"Dom. Rep.",region:"Karibik",lat:18.57,lon:-68.37},
+  {city:"Quito",country:"Ecuador",region:"Südamerika",lat:-0.13,lon:-78.49},
+  {city:"Tallinn",country:"Estland",region:"Europa",lat:59.41,lon:24.80},
+  {city:"Vagar",country:"Färöer",region:"Europa",lat:62.06,lon:-7.28},
+  {city:"Helsinki",country:"Finnland",region:"Europa",lat:60.32,lon:24.97},
+  {city:"Rovaniemi",country:"Finnland",region:"Europa",lat:66.56,lon:25.83},
+  {city:"Bastia",country:"Frankreich",region:"Europa",lat:42.55,lon:9.48},
+  {city:"Lyon",country:"Frankreich",region:"Europa",lat:45.73,lon:5.08},
+  {city:"Marseille",country:"Frankreich",region:"Europa",lat:43.44,lon:5.22},
+  {city:"Nizza",country:"Frankreich",region:"Europa",lat:43.66,lon:7.21},
+  {city:"Paris",country:"Frankreich",region:"Europa",lat:48.99,lon:2.55},
+  {city:"Almiros",country:"Griechenland",region:"Europa",lat:39.18,lon:22.76},
+  {city:"Athen",country:"Griechenland",region:"Europa",lat:37.94,lon:23.95},
+  {city:"Chania",country:"Griechenland",region:"Europa",lat:35.53,lon:24.15},
+  {city:"Heraklion",country:"Griechenland",region:"Europa",lat:35.34,lon:25.18},
+  {city:"Ioannina",country:"Griechenland",region:"Europa",lat:39.70,lon:20.82},
+  {city:"Kalamata",country:"Griechenland",region:"Europa",lat:37.07,lon:22.03},
+  {city:"Karpathos",country:"Griechenland",region:"Europa",lat:35.42,lon:27.15},
+  {city:"Kavala",country:"Griechenland",region:"Europa",lat:40.91,lon:24.62},
+  {city:"Korfu",country:"Griechenland",region:"Europa",lat:39.60,lon:19.91},
+  {city:"Kos",country:"Griechenland",region:"Europa",lat:36.79,lon:27.09},
+  {city:"Mykonos",country:"Griechenland",region:"Europa",lat:37.44,lon:25.35},
+  {city:"Preveza",country:"Griechenland",region:"Europa",lat:38.92,lon:20.77},
+  {city:"Rhodos",country:"Griechenland",region:"Europa",lat:36.41,lon:28.09},
+  {city:"Samos",country:"Griechenland",region:"Europa",lat:37.69,lon:26.91},
+  {city:"Santorin",country:"Griechenland",region:"Europa",lat:36.40,lon:25.48},
+  {city:"Thessaloniki",country:"Griechenland",region:"Europa",lat:40.52,lon:22.97},
+  {city:"Zakynthos",country:"Griechenland",region:"Europa",lat:37.75,lon:20.88},
+  {city:"Kangerlussuaq",country:"Grönland",region:"Nordamerika",lat:67.01,lon:-50.70},
+  {city:"Nuuk",country:"Grönland",region:"Nordamerika",lat:64.19,lon:-51.68},
+  {city:"Honolulu",country:"Hawaii",region:"Nordamerika",lat:21.32,lon:-157.93},
+  {city:"Hongkong",country:"Hongkong",region:"Asien",lat:22.31,lon:113.92},
+  {city:"Bengaluru",country:"Indien",region:"Asien",lat:13.20,lon:77.71},
+  {city:"Mumbai",country:"Indien",region:"Asien",lat:19.09,lon:72.87},
+  {city:"Neu-Delhi",country:"Indien",region:"Asien",lat:28.56,lon:77.12},
+  {city:"Erbil",country:"Irak",region:"Naher Osten",lat:36.24,lon:43.96},
+  {city:"Dublin",country:"Irland",region:"Europa",lat:53.43,lon:-6.27},
+  {city:"Keflavik",country:"Island",region:"Europa",lat:63.99,lon:-22.62},
+  {city:"Tel Aviv",country:"Israel",region:"Naher Osten",lat:32.01,lon:34.89},
+  {city:"Bari",country:"Italien",region:"Europa",lat:41.14,lon:16.76},
+  {city:"Bologna",country:"Italien",region:"Europa",lat:44.53,lon:11.29},
+  {city:"Brindisi",country:"Italien",region:"Europa",lat:40.66,lon:17.95},
+  {city:"Cagliari",country:"Italien",region:"Europa",lat:39.25,lon:9.05},
+  {city:"Catania",country:"Italien",region:"Europa",lat:37.47,lon:15.07},
+  {city:"Florenz",country:"Italien",region:"Europa",lat:43.81,lon:11.20},
+  {city:"Genua",country:"Italien",region:"Europa",lat:44.41,lon:8.84},
+  {city:"Lamezia Terme",country:"Italien",region:"Europa",lat:38.91,lon:16.24},
+  {city:"Mailand MXP",country:"Italien",region:"Europa",lat:45.63,lon:8.72},
+  {city:"Neapel",country:"Italien",region:"Europa",lat:40.89,lon:14.29},
+  {city:"Olbia",country:"Italien",region:"Europa",lat:40.90,lon:9.52},
+  {city:"Palermo",country:"Italien",region:"Europa",lat:38.18,lon:13.09},
+  {city:"Rom FCO",country:"Italien",region:"Europa",lat:41.80,lon:12.24},
+  {city:"Venedig",country:"Italien",region:"Europa",lat:45.51,lon:12.36},
+  {city:"Verona",country:"Italien",region:"Europa",lat:45.40,lon:10.89},
+  {city:"Tokio",country:"Japan",region:"Asien",lat:35.55,lon:139.78},
+  {city:"Amman",country:"Jordanien",region:"Naher Osten",lat:31.72,lon:35.99},
+  {city:"Halifax",country:"Kanada",region:"Nordamerika",lat:44.88,lon:-63.51},
+  {city:"Montreal",country:"Kanada",region:"Nordamerika",lat:45.46,lon:-73.75},
+  {city:"Vancouver",country:"Kanada",region:"Nordamerika",lat:49.19,lon:-123.18},
+  {city:"Boa Vista",country:"Kap Verde",region:"Afrika",lat:16.14,lon:-22.94},
+  {city:"Sal",country:"Kap Verde",region:"Afrika",lat:16.73,lon:-22.95},
+  {city:"Mombasa",country:"Kenia",region:"Afrika",lat:-4.03,lon:39.59},
+  {city:"Nairobi",country:"Kenia",region:"Afrika",lat:-1.32,lon:36.93},
+  {city:"Bogota",country:"Kolumbien",region:"Südamerika",lat:4.70,lon:-74.14},
+  {city:"Pristina",country:"Kosovo",region:"Europa",lat:42.57,lon:21.04},
+  {city:"Dubrovnik",country:"Kroatien",region:"Europa",lat:42.56,lon:18.27},
+  {city:"Pula",country:"Kroatien",region:"Europa",lat:44.89,lon:13.93},
+  {city:"Rijeka",country:"Kroatien",region:"Europa",lat:45.22,lon:14.57},
+  {city:"Split",country:"Kroatien",region:"Europa",lat:43.54,lon:16.30},
+  {city:"Zadar",country:"Kroatien",region:"Europa",lat:44.11,lon:15.35},
+  {city:"Riga",country:"Lettland",region:"Europa",lat:56.92,lon:23.97},
+  {city:"Beirut",country:"Libanon",region:"Naher Osten",lat:33.82,lon:35.49},
+  {city:"Tripolis",country:"Libyen",region:"Afrika",lat:32.66,lon:13.16},
+  {city:"Vilnius",country:"Litauen",region:"Europa",lat:54.64,lon:25.29},
+  {city:"Male",country:"Malediven",region:"Asien",lat:4.19,lon:73.52},
+  {city:"Luqa",country:"Malta",region:"Europa",lat:35.86,lon:14.48},
+  {city:"Agadir",country:"Marokko",region:"Afrika",lat:30.38,lon:-9.55},
+  {city:"Casablanca",country:"Marokko",region:"Afrika",lat:33.37,lon:-7.59},
+  {city:"Marrakesch",country:"Marokko",region:"Afrika",lat:31.61,lon:-8.04},
+  {city:"Nador",country:"Marokko",region:"Afrika",lat:34.99,lon:-2.94},
+  {city:"Martinique",country:"Martinique",region:"Karibik",lat:14.59,lon:-61.00},
+  {city:"Mauritius",country:"Mauritius",region:"Afrika",lat:-20.43,lon:57.68},
+  {city:"Chisinau",country:"Moldau",region:"Europa",lat:46.93,lon:28.93},
+  {city:"Podgorica",country:"Montenegro",region:"Europa",lat:42.36,lon:19.25},
+  {city:"Tivat",country:"Montenegro",region:"Europa",lat:42.40,lon:18.72},
+  {city:"Windhoek",country:"Namibia",region:"Afrika",lat:-22.48,lon:17.47},
+  {city:"Kathmandu",country:"Nepal",region:"Asien",lat:27.70,lon:85.36},
+  {city:"Amsterdam",country:"Niederlande",region:"Europa",lat:52.31,lon:4.76},
+  {city:"Abuja",country:"Nigeria",region:"Afrika",lat:9.01,lon:7.27},
+  {city:"Kaduna",country:"Nigeria",region:"Afrika",lat:10.60,lon:7.45},
+  {city:"Ohrid",country:"Nordmazedonien",region:"Europa",lat:41.18,lon:20.74},
+  {city:"Skopje",country:"Nordmazedonien",region:"Europa",lat:41.96,lon:21.62},
+  {city:"Alesund",country:"Norwegen",region:"Europa",lat:62.56,lon:6.12},
+  {city:"Bergen",country:"Norwegen",region:"Europa",lat:60.29,lon:5.22},
+  {city:"Oslo",country:"Norwegen",region:"Europa",lat:59.95,lon:10.61},
+  {city:"Tromsø",country:"Norwegen",region:"Europa",lat:69.68,lon:18.92},
+  {city:"Graz",country:"Österreich",region:"Europa",lat:46.99,lon:15.44},
+  {city:"Innsbruck",country:"Österreich",region:"Europa",lat:47.26,lon:11.34},
+  {city:"Salzburg",country:"Österreich",region:"Europa",lat:47.80,lon:13.00},
+  {city:"Wien",country:"Österreich",region:"Europa",lat:48.11,lon:16.57},
+  {city:"Skardu",country:"Pakistan",region:"Asien",lat:35.34,lon:75.54},
+  {city:"Danzig",country:"Polen",region:"Europa",lat:54.38,lon:18.47},
+  {city:"Krakau",country:"Polen",region:"Europa",lat:50.07,lon:19.79},
+  {city:"Warschau",country:"Polen",region:"Europa",lat:52.17,lon:20.97},
+  {city:"Warschau Radom",country:"Polen",region:"Europa",lat:51.39,lon:21.21},
+  {city:"Faro",country:"Portugal",region:"Europa",lat:37.02,lon:-7.96},
+  {city:"Funchal",country:"Portugal",region:"Europa",lat:32.70,lon:-16.77},
+  {city:"Lissabon",country:"Portugal",region:"Europa",lat:38.77,lon:-9.13},
+  {city:"Ponta Delgada",country:"Portugal",region:"Europa",lat:37.74,lon:-25.70},
+  {city:"Porto",country:"Portugal",region:"Europa",lat:41.24,lon:-8.68},
+  {city:"Bukarest",country:"Rumänien",region:"Europa",lat:44.57,lon:26.10},
+  {city:"Moskau SVO",country:"Russland",region:"Europa",lat:55.97,lon:37.41},
+  {city:"Sotschi",country:"Russland",region:"Europa",lat:43.45,lon:39.94},
+  {city:"St. Petersburg",country:"Russland",region:"Europa",lat:59.80,lon:30.26},
+  {city:"Jeddah",country:"Saudi-Arabien",region:"Naher Osten",lat:21.68,lon:39.16},
+  {city:"Göteborg",country:"Schweden",region:"Europa",lat:57.67,lon:12.30},
+  {city:"Stockholm",country:"Schweden",region:"Europa",lat:59.65,lon:17.92},
+  {city:"Genf",country:"Schweiz",region:"Europa",lat:46.24,lon:6.11},
+  {city:"Zürich",country:"Schweiz",region:"Europa",lat:47.46,lon:8.55},
+  {city:"Belgrad",country:"Serbien",region:"Europa",lat:44.82,lon:20.31},
+  {city:"Seychellen",country:"Seychellen",region:"Afrika",lat:-4.67,lon:55.52},
+  {city:"Singapur",country:"Singapur",region:"Asien",lat:1.36,lon:103.99},
+  {city:"St. Maarten",country:"Sint Maarten",region:"Karibik",lat:18.04,lon:-63.11},
+  {city:"Ljubljana",country:"Slowenien",region:"Europa",lat:46.22,lon:14.46},
+  {city:"Alicante",country:"Spanien",region:"Europa",lat:38.28,lon:-0.56},
+  {city:"Barcelona",country:"Spanien",region:"Europa",lat:41.30,lon:2.08},
+  {city:"Bilbao",country:"Spanien",region:"Europa",lat:43.30,lon:-2.91},
+  {city:"Fuerteventura",country:"Spanien",region:"Afrika",lat:28.45,lon:-13.86},
+  {city:"Gran Canaria",country:"Spanien",region:"Afrika",lat:27.93,lon:-15.39},
+  {city:"Ibiza",country:"Spanien",region:"Europa",lat:38.87,lon:1.37},
+  {city:"La Palma",country:"Spanien",region:"Afrika",lat:28.63,lon:-17.76},
+  {city:"Lanzarote",country:"Spanien",region:"Afrika",lat:28.95,lon:-13.61},
+  {city:"Madrid",country:"Spanien",region:"Europa",lat:40.47,lon:-3.57},
+  {city:"Malaga",country:"Spanien",region:"Europa",lat:36.68,lon:-4.50},
+  {city:"Menorca",country:"Spanien",region:"Europa",lat:39.86,lon:4.22},
+  {city:"Palma de Mallorca",country:"Spanien",region:"Europa",lat:39.55,lon:2.74},
+  {city:"Sevilla",country:"Spanien",region:"Europa",lat:37.42,lon:-5.90},
+  {city:"Teneriffa",country:"Spanien",region:"Afrika",lat:28.05,lon:-16.57},
+  {city:"Valencia",country:"Spanien",region:"Europa",lat:39.49,lon:-0.48},
+  {city:"Colombo",country:"Sri Lanka",region:"Asien",lat:7.18,lon:79.88},
+  {city:"Johannesburg",country:"Südafrika",region:"Afrika",lat:-26.13,lon:28.24},
+  {city:"Kapstadt",country:"Südafrika",region:"Afrika",lat:-33.97,lon:18.60},
+  {city:"Seoul",country:"Südkorea",region:"Asien",lat:37.46,lon:126.44},
+  {city:"Zanzibar",country:"Tansania",region:"Afrika",lat:-6.22,lon:39.22},
+  {city:"Bangkok",country:"Thailand",region:"Asien",lat:13.69,lon:100.75},
+  {city:"Prag",country:"Tschechien",region:"Europa",lat:50.10,lon:14.26},
+  {city:"Adana",country:"Türkei",region:"Europa",lat:36.98,lon:35.29},
+  {city:"Ankara",country:"Türkei",region:"Europa",lat:40.13,lon:32.99},
+  {city:"Antalya",country:"Türkei",region:"Europa",lat:36.90,lon:30.80},
+  {city:"Bodrum",country:"Türkei",region:"Europa",lat:37.25,lon:27.66},
+  {city:"Bursa",country:"Türkei",region:"Europa",lat:40.23,lon:29.01},
+  {city:"Dalaman",country:"Türkei",region:"Europa",lat:36.71,lon:28.79},
+  {city:"Diyarbakir",country:"Türkei",region:"Europa",lat:37.89,lon:40.20},
+  {city:"Edremit",country:"Türkei",region:"Europa",lat:39.55,lon:27.01},
+  {city:"Elazig",country:"Türkei",region:"Europa",lat:38.61,lon:38.82},
+  {city:"Erzurum",country:"Türkei",region:"Europa",lat:39.96,lon:41.17},
+  {city:"Gaziantep",country:"Türkei",region:"Europa",lat:36.95,lon:37.48},
+  {city:"Istanbul IST",country:"Türkei",region:"Europa",lat:41.27,lon:28.73},
+  {city:"Istanbul SAW",country:"Türkei",region:"Europa",lat:40.90,lon:29.31},
+  {city:"Izmir",country:"Türkei",region:"Europa",lat:38.29,lon:27.16},
+  {city:"Kayseri",country:"Türkei",region:"Europa",lat:38.77,lon:35.49},
+  {city:"Konya",country:"Türkei",region:"Europa",lat:37.98,lon:32.56},
+  {city:"Malatya",country:"Türkei",region:"Europa",lat:38.44,lon:38.09},
+  {city:"Samsun",country:"Türkei",region:"Europa",lat:41.25,lon:36.30},
+  {city:"Trabzon",country:"Türkei",region:"Europa",lat:40.99,lon:39.79},
+  {city:"Zonguldak",country:"Türkei",region:"Europa",lat:41.51,lon:32.09},
+  {city:"Djerba",country:"Tunesien",region:"Afrika",lat:33.87,lon:10.78},
+  {city:"Monastir",country:"Tunesien",region:"Afrika",lat:35.76,lon:10.75},
+  {city:"Tunis",country:"Tunesien",region:"Afrika",lat:36.85,lon:10.23},
+  {city:"Boise",country:"USA",region:"Nordamerika",lat:43.56,lon:-116.22},
+  {city:"Denver",country:"USA",region:"Nordamerika",lat:39.85,lon:-104.67},
+  {city:"Fort Lauderdale",country:"USA",region:"Nordamerika",lat:26.07,lon:-80.15},
+  {city:"Fort Myers",country:"USA",region:"Nordamerika",lat:26.54,lon:-81.76},
+  {city:"Las Vegas",country:"USA",region:"Nordamerika",lat:36.08,lon:-115.15},
+  {city:"Los Angeles",country:"USA",region:"Nordamerika",lat:33.94,lon:-118.41},
+  {city:"Miami",country:"USA",region:"Nordamerika",lat:25.80,lon:-80.29},
+  {city:"New York",country:"USA",region:"Nordamerika",lat:40.64,lon:-73.78},
+  {city:"Newark",country:"USA",region:"Nordamerika",lat:40.69,lon:-74.18},
+  {city:"Palm Springs",country:"USA",region:"Nordamerika",lat:33.83,lon:-116.51},
+  {city:"Phoenix",country:"USA",region:"Nordamerika",lat:33.44,lon:-112.01},
+  {city:"San Antonio",country:"USA",region:"Nordamerika",lat:29.53,lon:-98.47},
+  {city:"San Francisco",country:"USA",region:"Nordamerika",lat:37.62,lon:-122.38},
+  {city:"Kiew",country:"Ukraine",region:"Europa",lat:50.34,lon:30.89},
+  {city:"Budapest",country:"Ungarn",region:"Europa",lat:47.44,lon:19.26},
+  {city:"Abu Dhabi",country:"VAE",region:"Naher Osten",lat:24.43,lon:54.65},
+  {city:"Dubai DXB",country:"VAE",region:"Naher Osten",lat:25.25,lon:55.36},
+  {city:"Birmingham",country:"UK",region:"Europa",lat:52.45,lon:-1.74},
+  {city:"Bristol",country:"UK",region:"Europa",lat:51.38,lon:-2.72},
+  {city:"Edinburgh",country:"UK",region:"Europa",lat:55.95,lon:-3.37},
+  {city:"London LGW",country:"UK",region:"Europa",lat:51.15,lon:-0.18},
+  {city:"London LHR",country:"UK",region:"Europa",lat:51.47,lon:-0.45},
+  {city:"London STN",country:"UK",region:"Europa",lat:51.88,lon:0.24},
+  {city:"Manchester",country:"UK",region:"Europa",lat:53.36,lon:-2.27},
+  {city:"Newquay",country:"UK",region:"Europa",lat:50.44,lon:-5.00},
+  {city:"Da Nang",country:"Vietnam",region:"Asien",lat:15.97,lon:108.20},
+  {city:"Hanoi",country:"Vietnam",region:"Asien",lat:21.22,lon:105.80},
+  {city:"Ho-Chi-Minh-Stadt",country:"Vietnam",region:"Asien",lat:10.82,lon:106.66},
+  {city:"Larnaka",country:"Zypern",region:"Europa",lat:34.87,lon:33.63},
+  {city:"Paphos",country:"Zypern",region:"Europa",lat:34.72,lon:32.48}
+];
+
+const DUS={lat:51.29,lon:6.77};
+const regionColors={"Europa":"#2563a8","Asien":"#1a9e70","Afrika":"#c0392b","Naher Osten":"#b07010","Nordamerika":"#5a42b0","Südamerika":"#903050","Karibik":"#0e6e50"};
+let activeRegion="Alle";
+
+["Alle",...Object.keys(regionColors)].forEach(r=>{
+  const btn=document.createElement("button");
+  btn.className="region-btn"+(r==="Alle"?" active":"");
+  btn.textContent=r;
+  btn.onclick=()=>{activeRegion=r;document.querySelectorAll(".region-btn").forEach(b=>b.classList.remove("active"));btn.classList.add("active");redraw();};
+  document.getElementById("filters").appendChild(btn);
+});
+
+const W=900,H=500;
+const svg=d3.select("#map");
+const zoomG=d3.select("#zoom-g");
+const projection=d3.geoNaturalEarth1().scale(153).translate([W/2,H/2]);
+const pathGen=d3.geoPath().projection(projection);
+const zoom=d3.zoom().scaleExtent([1,20]).translateExtent([[0,0],[W,H]])
+  .on("zoom",(event)=>{
+    zoomG.attr("transform",event.transform);
+    const k=event.transform.k,r=DOT_R/Math.sqrt(k);
+    zoomG.selectAll("circle.dest").attr("r",r).attr("stroke-width",0.5/Math.sqrt(k));
+    zoomG.selectAll("circle.dus-dot").attr("r",r).attr("stroke-width",1/Math.sqrt(k));
+    zoomG.selectAll("line.flight").attr("stroke-width",0.6/Math.sqrt(k));
+  });
+svg.call(zoom);
+document.getElementById("zoom-in").onclick=()=>svg.transition().duration(300).call(zoom.scaleBy,1.6);
+document.getElementById("zoom-out").onclick=()=>svg.transition().duration(300).call(zoom.scaleBy,0.625);
+document.getElementById("zoom-reset").onclick=()=>svg.transition().duration(400).call(zoom.transform,d3.zoomIdentity);
+function ck(){return d3.zoomTransform(svg.node()).k;}
+
+function redraw(){
+  const filtered=activeRegion==="Alle"?destinations:destinations.filter(d=>d.region===activeRegion);
+  d3.select("#lines").selectAll("line").remove();
+  d3.select("#dots").selectAll("circle").remove();
+  const tooltip=document.getElementById("tooltip");
+  const src=projection([DUS.lon,DUS.lat]);
+  const k=ck(),r=DOT_R/Math.sqrt(k);
+  filtered.forEach(d=>{
+    const dst=projection([d.lon,d.lat]);
+    if(!dst)return;
+    const col=regionColors[d.region]||"#2563a8";
+    d3.select("#lines").append("line").attr("class","flight")
+      .attr("x1",src[0]).attr("y1",src[1]).attr("x2",dst[0]).attr("y2",dst[1])
+      .attr("stroke",col).attr("stroke-width",0.6/Math.sqrt(k)).attr("stroke-opacity","0.32");
+    d3.select("#dots").append("circle").attr("class","dest")
+      .attr("cx",dst[0]).attr("cy",dst[1]).attr("r",r)
+      .attr("fill",col).attr("fill-opacity","0.85").attr("stroke","#fff").attr("stroke-width",0.5/Math.sqrt(k))
+      .style("cursor","pointer")
+      .on("mouseover",function(evt){
+        const kr=ck();d3.select(this).attr("r",(DOT_R+1.5)/Math.sqrt(kr)).attr("fill-opacity","1");
+        tooltip.style.display="block";
+        tooltip.innerHTML="<strong>"+d.city+"</strong><span>"+d.country+" · "+d.region+"</span>";
+        const rect=document.getElementById("map-container").getBoundingClientRect();
+        tooltip.style.left=(evt.clientX-rect.left+12)+"px";tooltip.style.top=(evt.clientY-rect.top-10)+"px";
+      })
+      .on("mouseout",function(){d3.select(this).attr("r",DOT_R/Math.sqrt(ck())).attr("fill-opacity","0.85");tooltip.style.display="none";});
+  });
+}
+
+function drawDUS(){
+  const pos=projection([DUS.lon,DUS.lat]);
+  if(!pos)return;
+  const k=ck(),r=DOT_R/Math.sqrt(k);
+  d3.select("#dus").append("circle").attr("class","dus-dot")
+    .attr("cx",pos[0]).attr("cy",pos[1]).attr("r",r)
+    .attr("fill","#c0392b").attr("stroke","#fff").attr("stroke-width",1/Math.sqrt(k));
+}
+
+function drawLegend(){
+  const g=d3.select("#legend");
+  Object.entries(regionColors).forEach(([region,color],i)=>{
+    g.append("circle").attr("cx",18).attr("cy",378+i*16).attr("r",4).attr("fill",color);
+    g.append("text").attr("x",28).attr("y",382+i*16).attr("font-size","10").attr("fill","#666").attr("font-family","DM Sans, sans-serif").text(region);
+  });
+}
+
+Promise.all([
+  d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"),
+  new Promise(res=>{
+    if(window.topojson){res();return;}
+    const s=document.createElement("script");
+    s.src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js";
+    s.onload=res;document.head.appendChild(s);
+  })
+]).then(([world])=>{
+  const countries=topojson.feature(world,world.objects.countries);
+  d3.select("#countries").selectAll("path").data(countries.features).enter().append("path")
+    .attr("d",pathGen).attr("fill","#ccd9e8").attr("stroke","#b0c0d0").attr("stroke-width","0.4");
+  redraw();drawDUS();drawLegend();
+});
+</script>
+</body>
+</html>
